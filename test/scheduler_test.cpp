@@ -1,9 +1,3 @@
-/**
- * @file test_scheduler.cc
- * @brief 协程调度器测试
- * @version 0.1
- * @date 2021-06-15
- */
 
 #include "../src/scheduler.h"
 #include <iostream>
@@ -13,7 +7,7 @@ using namespace dserver;
  * @brief 演示协程主动yield情况下应该如何操作
  */
 void test_fiber1() {
-    std::cout << "test_fiber1 begin";
+    std::cout << "test_fiber1 begin" << std::endl;
   
     /**
      * 协程主动让出执行权，在yield之前，协程必须再次将自己添加到调度器任务队列中，
@@ -22,18 +16,18 @@ void test_fiber1() {
 
     Scheduler::GetThis()->schedule(Fiber::GetThis());
 
-    std::cout  << "before test_fiber1 yield";
+    std::cout  << "before test_fiber1 yield"<< std::endl;
     Fiber::GetThis()->yield();
-    std::cout  << "after test_fiber1 yield";
+    std::cout  << "after test_fiber1 yield"<< std::endl;
 
-    std::cout  << "test_fiber1 end";
+    std::cout  << "test_fiber1 end"<< std::endl;
 }
 
 /**
  * @brief 演示协程睡眠对主程序的影响
  */
 void test_fiber2() {
-    std::cout  << "test_fiber2 begin";
+    std::cout  << "test_fiber2 begin"<< std::endl;
 
     /**
      * 一个线程同一时间只能有一个协程在运行，线程调度协程的本质就是按顺序执行任务队列里的协程
@@ -42,19 +36,19 @@ void test_fiber2() {
      */
     sleep(3);
 
-    std::cout  << "test_fiber2 end";
+    std::cout  << "test_fiber2 end"<< std::endl;
 }
 
 void test_fiber3() {
-    std::cout  << "test_fiber3 begin";
-    std::cout  << "test_fiber3 end";
+    std::cout  << "test_fiber3 begin"<< std::endl;
+    std::cout  << "test_fiber3 end"<< std::endl;
 }
 
 void test_fiber5() {
     static int count = 0;
 
-    std::cout  << "test_fiber5 begin, i = " << count;
-    std::cout  << "test_fiber5 end i = " << count;
+    std::cout  << "test_fiber5 begin, i = " << count<< std::endl;
+    std::cout  << "test_fiber5 end i = " << count<< std::endl;
 
     count++;
 }
@@ -63,17 +57,17 @@ void test_fiber5() {
  * @brief 演示指定执行线程的情况
  */
 void test_fiber4() {
-    std::cout  << "test_fiber4 begin";
+    std::cout  << "test_fiber4 begin"<< std::endl;
     
     for (int i = 0; i < 3; i++) {
         Scheduler::GetThis()->schedule(test_fiber5);
     }
 
-    std::cout  << "test_fiber4 end";
+    std::cout  << "test_fiber4 end"<< std::endl;
 }
 
 int main() {
-    std::cout  << "main begin";
+    std::cout  << "main begin"<< std::endl;
 
     /** 
      * 只使用main函数线程进行协程调度，相当于先攒下一波协程，然后切换到调度器的run方法将这些协程
@@ -90,7 +84,6 @@ int main() {
 
     // 添加调度任务，使用Fiber类作为调度对象
 
-
     // 创建调度线程，开始任务调度，如果只使用main函数线程进行调度，那start相当于什么也没做
     sc.start();
 
@@ -106,6 +99,6 @@ int main() {
      */
     sc.stop();
 
-    std::cout << "main end";
+    std::cout << "main end"<< std::endl;
     return 0;
 }
