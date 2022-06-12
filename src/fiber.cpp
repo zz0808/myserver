@@ -1,12 +1,11 @@
 #include "fiber.h"
+#include "scheduler.h"
 #include <queue>
 #include <vector>
 #include <atomic>
 #include <mutex>
 #include <assert.h>
 #include <iostream>
-#include "lock.h"
-#include "scheduler.h"
 
 namespace dserver {
 

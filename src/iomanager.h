@@ -19,7 +19,6 @@ public:
 private:
     // socket fd 上下文，包括fd的值，fd上的事件，以及fd的读写事件上下文
     struct FdContext {
-        std::mutex mtx;
         // 事件上下文类
         struct EventContext {
             // 执行事件回调的调度器
@@ -48,7 +47,7 @@ public:
     IOManager(size_t threads = 1, bool use_caller = true, const std::string &name = "IOManager");
     ~IOManager();
     int add_event(int fd, Event e, std::function<void()> cb);
-    int del_event(int fd, Event e);
+    bool del_event(int fd, Event e);
     bool cancel_event(int fd, Event e);
     bool cancel_all(int fd);
 
@@ -67,7 +66,7 @@ private:
     int epfd_ = 0;
     int tickle_fd[2];
     std::atomic<size_t> pending_event_count_{0};
-    std::mutex mtx_;
+    std::shared_mutex mtx_;
     std::vector<FdContext*> fd_contexts_;
     
 };

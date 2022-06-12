@@ -52,10 +52,10 @@ public:
 
 protected:  
     virtual void on_timer_inserted_at_front() = 0;
-    void add_timer(Timer::ptr val, std::unique_lock<std::mutex>& lock);
+    void add_timer(Timer::ptr val, std::unique_lock<std::shared_mutex>& lock);
     bool detect_clock_rollover(uint64_t now_ms);
 private:
-    std::mutex mtx_;
+    std::shared_mutex mtx_;
     std::set<Timer::ptr, Timer::Comparator> timers_;
     bool tickle_ = false;
     uint64_t previous_time = 0;

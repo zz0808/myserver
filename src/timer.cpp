@@ -40,7 +40,7 @@ Timer::Timer(uint64_t ms, std::function<void()> cb, bool recur, TimerManager* ma
 Timer::Timer(uint64_t next) : next_(next) {}
 
 bool Timer::cancel() {
-    std::unique_lock<std::mutex> write_lock(manager_->mtx_);
+    std::unique_lock<std::shared_mutex> write_lock(manager_->mtx_);
     if (cb_) {
         cb_ = nullptr;
         auto it = manager_->timers_.find(shared_from_this());
@@ -51,7 +51,7 @@ bool Timer::cancel() {
 }
 
 bool Timer::refresh() {
-    std::unique_lock<std::mutex> write_lock(manager_->mtx_);
+    std::unique_lock<std::shared_mutex> write_lock(manager_->mtx_);
     if (cb_ == nullptr) {
         return false;
     }
@@ -70,7 +70,7 @@ bool Timer::reset(uint64_t ms, bool from_now) {
     if (ms == ms_ && from_now == false) {
         return true;
     }
-    std::unique_lock<std::mutex> write_lock(manager_->mtx_);
+    std::unique_lock<std::shared_mutex> write_lock(manager_->mtx_);
     if (cb_ == nullptr) {
         return false;
     }
@@ -95,7 +95,7 @@ TimerManager::~TimerManager() { }
 
 Timer::ptr TimerManager::add_timer(uint64_t ms, std::function<void()> cb, bool recur) {
     Timer::ptr timer(new Timer(ms, cb, recur, this));
-    std::unique_lock<std::mutex> write_lock(mtx_);
+    std::unique_lock<std::shared_mutex> write_lock(mtx_);
     add_timer(timer, write_lock);
     return timer;
 }
@@ -106,7 +106,7 @@ Timer::ptr TimerManager::add_condition_timer(uint64_t ms, std::function<void()> 
 }
 
 uint64_t TimerManager::get_next_timer() {
-    std::shared_lock<std::mutex> read_lock(mtx_);
+    std::shared_lock<std::shared_mutex> read_lock(mtx_);
     tickle_ = false;
     if (timers_.empty()) {
         return 0;
@@ -125,12 +125,12 @@ void TimerManager::list_all_expired_cbs(std::vector<std::function<void()>>& cbs)
     uint64_t now_ms = dserver::GetElapsedMS();
     std::vector<Timer::ptr> expired;
     {
-        std::shared_lock<std::mutex> read_lock(mtx_);
+        std::shared_lock<std::shared_mutex> read_lock(mtx_);
         if(timers_.empty()) {
             return;
         }
     }
-    std::unique_lock<std::mutex> write_lock(mtx_);
+    std::unique_lock<std::shared_mutex> write_lock(mtx_);
     if(timers_.empty()) {
         return;
     }
@@ -164,11 +164,11 @@ void TimerManager::list_all_expired_cbs(std::vector<std::function<void()>>& cbs)
 }
 
 bool TimerManager::has_timer() {
-    std::shared_lock<std::mutex> read_lock(mtx_);
+    std::shared_lock<std::shared_mutex> read_lock(mtx_);
     return !timers_.empty();
 }
 
-void TimerManager::add_timer(Timer::ptr val, std::unique_lock<std::mutex>& lock) {
+void TimerManager::add_timer(Timer::ptr val, std::unique_lock<std::shared_mutex>& lock) {
     auto it = timers_.insert(val).first;
     bool at_front = (it == timers_.begin()) && !tickle_;
     if(at_front) {
