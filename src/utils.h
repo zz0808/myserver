@@ -1,3 +1,6 @@
+#ifndef UTILS_H_
+#define UTILS_H_
+
 #include <sys/types.h>
 #include <stdint.h>
 #include <sys/time.h>
@@ -6,9 +9,11 @@
 #include <vector>
 #include <iostream>
 
-namespace dserver {
+namespace server {
 
-// 获取当前启动的毫秒数，参考clock_gettime(2)，使用CLOCK_MONOTONIC_RAW
+// 获取程序到现在的启动时间(毫秒)
 uint64_t GetElapsedMS();
 
-} // namespace dserver 
+} // namespace server
+
+#endif

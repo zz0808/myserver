@@ -1,53 +1,47 @@
 #include "log.h"
 
-namespace dserver {
+namespace server {
+
+const char* LogLevel::ToString(LogLevel::Level level) {
+
+    switch (level) {
+#define XX(name) case LogLevel::name: return #name; break;
+        XX(FATAL);
+        XX(ALERT);
+        XX(CRIT);
+        XX(ERROR);
+        XX(WARN);
+        XX(NOTICE);
+        XX(INFO);
+        XX(DEBUG);
+        XX(NOTSET);
+#undef XX
+        default:
+            return "NOTSET"; break;
+    }
+    return "NOTSET";
+}
 
 LogLevel::Level LogLevel::FromString(const std::string& str) {
-#define XX(level, v) if (str == #v) { return LogLevel::level; }
+#define XX(level, name) if (str == #name) { return LogLevel::level; }
     XX(FATAL, FATAL);
-    XX(ALERT, ALERT);
+    XX(ALERT,ALERT);
     XX(CRIT, CRIT);
     XX(ERROR, ERROR);
     XX(WARN, WARN);
     XX(NOTICE, NOTICE);
-    XX(FATAL, FATAL);
     XX(INFO, INFO);
     XX(DEBUG, DEBUG);
+    XX(NOTSET, NOTSET);   
 #undef XX
 
     return LogLevel::NOTSET;
 }
 
-const char* LogLevel::ToString(Level level) {
-    switch (level) {
-#define XX(name) case LogLevel::name: return #name;
-    XX(FATAL);
-    XX(ALERT);
-    XX(CRIT);
-    XX(ERROR);
-    XX(WARN);
-    XX(NOTICE);
-    XX(INFO);
-    XX(DEBUG);
-#undef XX
-    default:
-        return "NOSET";
-    }
-    return "NOSET";
-}
-
-LogEvent::LogEvent(const std::string& log_name, LogLevel::Level level, const char* file, uint32_t line, 
-                  uint64_t elapse, uint32_t thread_id, uint64_t fiber_id, time_t time, 
-                  const std::string& thread_name)
-                : level_(level)
-                , file_(file)
-                , line_(line)
-                , elapse_(elapse)
-                , thread_id_(thread_id)
-                , fiber_id_(fiber_id)
-                , time_(time)
-                , thread_name_(thread_name)
-                , logger_name_(log_name)  {
+LogEvent::LogEvent(const std::string& logger_name, LogLevel::Level level, const char* file, uint32_t line, uint64_t elapse
+                  , uint32_t thread_id, uint64_t fiber_id, time_t time, const std::string& thread_name) 
+                  : level_(level), file_(file), line_(line), elapse_(elapse), thread_id_(thread_id), fiber_id_(fiber_id)
+                  , time_(time), thread_name_(thread_name), logger_name_(logger_name) {
 }
 
 void LogEvent::printf(const char *fmt, ...) {
@@ -64,6 +58,11 @@ void LogEvent::vprintf(const char *fmt, va_list ap) {
         ss_ << std::string(buf, len);
         free(buf);
     }
+}
+
+LogFormatter::LogFormatter(const std::string &pattern)
+    : pattern_(pattern) {
+    init();
 }
 
 class MessageFormatItem : public LogFormatter::FormatItem {
@@ -94,7 +93,7 @@ class LoggerNameFormatItem : public LogFormatter::FormatItem {
 public:
     LoggerNameFormatItem(const std::string &str) {}
     void format(std::ostream &os, LogEvent::ptr event) override {
-        os << event->GetLogName();
+        os << event->GetLoggerName();
     }
 };
 
@@ -125,9 +124,9 @@ public:
 class DateTimeFormatItem : public LogFormatter::FormatItem {
 public:
     DateTimeFormatItem(const std::string& format = "%Y-%m-%d %H:%M:%S")
-        :format_(format) {
-        if(format_.empty()) {
-            format_ = "%Y-%m-%d %H:%M:%S";
+        :m_format(format) {
+        if(m_format.empty()) {
+            m_format = "%Y-%m-%d %H:%M:%S";
         }
     }
 
@@ -136,12 +135,11 @@ public:
         time_t time = event->GetTime();
         localtime_r(&time, &tm);
         char buf[64];
-        strftime(buf, sizeof(buf), format_.c_str(), &tm);
+        strftime(buf, sizeof(buf), m_format.c_str(), &tm);
         os << buf;
     }
-
 private:
-    std::string format_;
+    std::string m_format;
 };
 
 class FileNameFormatItem : public LogFormatter::FormatItem {
@@ -195,23 +193,21 @@ public:
     }
 };
 
-LogFormatter::LogFormatter(const std::string &pattern)
-    : pattern_(pattern) {
-    init();
-}
-
 void LogFormatter::init() {
     std::vector<std::pair<int, std::string>> patterns;
     // 临时存储常规字符串
     std::string tmp;
     // 日期格式字符串，默认把位于%d后面的大括号对里的全部字符都当作格式字符，不校验格式是否合法
     std::string dateformat;
+    // 是否解析出错
     bool error = false;
-
+    
     // 是否正在解析常规字符，初始时为true
     bool parsing_string = true;
+    // 是否正在解析模板字符，%后面的是模板字符
+    // bool parsing_pattern = false;
 
-    uint32_t i = 0;
+    size_t i = 0;
     while(i < pattern_.size()) {
         std::string c = std::string(1, pattern_[i]);
         if(c == "%") {
@@ -265,7 +261,7 @@ void LogFormatter::init() {
                 continue;
             }
         }
-    } // end whi
+    } // end while(i < m_pattern.size())
 
     if(error) {
         error_ = true;
@@ -278,6 +274,13 @@ void LogFormatter::init() {
         tmp.clear();
     }
 
+    // for debug 
+    // std::cout << "patterns:" << std::endl;
+    // for(auto &v : patterns) {
+    //     std::cout << "type = " << v.first << ", value = " << v.second << std::endl;
+    // }
+    // std::cout << "dataformat = " << dateformat << std::endl;
+    
     static std::map<std::string, std::function<FormatItem::ptr(const std::string& str)> > s_format_items = {
 #define XX(str, C)  {#str, [](const std::string& fmt) { return FormatItem::ptr(new C(fmt));} }
 
@@ -323,96 +326,73 @@ void LogFormatter::init() {
 
 std::string LogFormatter::format(LogEvent::ptr event) {
     std::stringstream ss;
-    for (auto& item : items_) {
-        item->format(ss, event);
+    for (auto& i : items_) {
+        i->format(ss, event);
     }
     return ss.str();
 }
 
 std::ostream& LogFormatter::format(std::ostream &os, LogEvent::ptr event) {
-    for(auto& item : items_) {
-        item->format(os, event);
+    for (auto& i : items_) {
+        i->format(os, event);
     }
     return os;
 }
 
 LogAppender::LogAppender(LogFormatter::ptr default_formatter)
-    : default_formatter_(default_formatter) {}
+    : default_formatter_(default_formatter) {
+}
 
-void LogAppender::SetFormatter(LogFormatter::ptr val) {
+void LogAppender::SetLogFormatter(LogFormatter::ptr val) {
     std::lock_guard<std::mutex> locker(mtx_);
     formatter_ = val;
 }
 
-LogFormatter::ptr LogAppender::GetFormatter() {
+LogFormatter::ptr LogAppender::GetLogFormatter() {
     std::lock_guard<std::mutex> locker(mtx_);
-    return formatter_ ? formatter_ : default_formatter_;
+    if (formatter_) return formatter_; 
+    return default_formatter_;
 }
 
 StdoutLogAppender::StdoutLogAppender() 
-    : LogAppender(LogFormatter::ptr(new LogFormatter)) {
+    : LogAppender(LogFormatter::ptr(new LogFormatter)){
 }
 
 void StdoutLogAppender::log(LogEvent::ptr event) {
     if (formatter_) {
-        formatter_->format(std::cout, event);
+        formatter_->format(event);
     } else {
-        default_formatter_->format(std::cout, event);
+        default_formatter_->format(event);
     }
 }
 
-std::string StdoutLogAppender::toYamlString() {
-    std::lock_guard<std::mutex> locker(mtx_);
-    YAML::Node node;
-    node["type"] = "StdoutLogAppender";
-    node["pattern"] = formatter_->GetPattern();
-    std::stringstream ss;
-    ss << node;
-    return ss.str();
-}
-
-FileLogAppender::FileLogAppender(const std::string& file)
-    : LogAppender(LogFormatter::ptr(new LogFormatter)), file_name_(file) {
-    reopen();
-    if(reopen_error_) {
-        std::cout << "reopen file " << file_name_ << " error" << std::endl;
-    }
+FileLogAppender::FileLogAppender() 
+    : LogAppender(LogFormatter::ptr(new LogFormatter)){
 }
 
 void FileLogAppender::log(LogEvent::ptr event) {
-    uint64_t now = event->GetTime();
-    if (now >= last_time_ + 3) {
+    uint64_t now_time = event->GetTime();
+    if (now_time >= last_open_time_ + 3) {
         reopen();
-        if(reopen_error_) {
-            std::cout << "reopen file " << file_name_ << " error" << std::endl;
+        if (reopen_error_) {
+            std::cout << "log file " << file_name_ << " open failed" << std::endl;
         }
-        last_time_ = now;
+        last_open_time_ = now_time;
     }
-    if(reopen_error_) {
+    if (reopen_error_) {
         return;
     }
     std::lock_guard<std::mutex> locker(mtx_);
-    if (formatter_) {
-        if (!formatter_->format(file_stream_, event)) {
+    if(formatter_) {
+        if(!formatter_->format(file_stream_, event)) {
             std::cout << "[ERROR] FileLogAppender::log() format error" << std::endl;
         }
     } else {
-        if (!default_formatter_->format(file_stream_, event)) {
+        if(!default_formatter_->format(file_stream_, event)) {
             std::cout << "[ERROR] FileLogAppender::log() format error" << std::endl;
         }
     }
 }
-
-std::string FileLogAppender::toYamlString() {
-    std::lock_guard<std::mutex> locker(mtx_);
-    YAML::Node node;
-    node["type"] = "FileLogAppender";
-    node["file"] = file_name_;
-    node["pattern"] =  formatter_ ? formatter_->GetPattern() : default_formatter_->GetPattern();
-    std::stringstream ss;
-    ss << node;
-    return ss.str();
-} 
 
 bool FileLogAppender::reopen() {
     std::lock_guard<std::mutex> locker(mtx_);
@@ -424,59 +404,38 @@ bool FileLogAppender::reopen() {
     return !reopen_error_;
 }
 
-Logger::Logger(const std::string& name) 
-    : name_(name)
-    , level_(LogLevel::INFO)
+Logger::Logger(const std::string &name) 
+    : log_name_(name)
+    , level_(LogLevel::INFO) 
     , create_time_(GetElapsedMS()){
 }
 
-void Logger::add_appender(LogAppender::ptr appender) {
+void Logger::addAppender(LogAppender::ptr appender) {
     std::lock_guard<std::mutex> locker(mtx_);
     appenders_.push_back(appender);
 }
 
-void Logger::del_appender(LogAppender::ptr appender) {
+void Logger::delAppender(LogAppender::ptr appender) {
     std::lock_guard<std::mutex> locker(mtx_);
-    auto it = appenders_.begin();
-    while (it != appenders_.end()) {
-        if (*it == appender) {
+    for (auto it = appenders_.begin(); it != appenders_.end(); it++) {
+        if (appender == *it) {
             appenders_.erase(it);
             break;
         }
-        it++;
     }
 }
 
-void Logger::clear_appender() {
+void Logger::clearAppenders() {
     std::lock_guard<std::mutex> locker(mtx_);
     appenders_.clear();
 }
 
-/**
- * 调用Logger的所有appenders将日志写一遍，
- * Logger至少要有一个appender，否则没有输出
- */
 void Logger::log(LogEvent::ptr event) {
-    if (event->GetLevel() >= level_) {
-        return;
+    if (event->GetLevel() <= level_) {
+        for (auto& it : appenders_) {
+            it->log(event);
+        }
     }
-    for (auto& it : appenders_) {
-        it->log(event);
-    }
-}
-
-std::string Logger::ToYamlString() {
-    std::lock_guard<std::mutex> locker(mtx_);
-
-    YAML::Node node;
-    node["name"] = name_;
-    node["level"] = LogLevel::ToString(level_);
-    for(auto &i : appenders_) {
-        node["appenders"].push_back(YAML::Load(i->toYamlString()));
-    }
-    std::stringstream ss;
-    ss << node;
-    return ss.str();
 }
 
 LogEventWrap::LogEventWrap(Logger::ptr logger, LogEvent::ptr event) 
@@ -488,74 +447,4 @@ LogEventWrap::~LogEventWrap() {
     logger_->log(event_);
 }
 
-LoggerManager::LoggerManager() {
-    root_logger_.reset(new Logger("root"));
-    root_logger_->add_appender(LogAppender::ptr(new StdoutLogAppender));
-    loggers_[root_logger_->GetName()] = root_logger_;
-    init();
 }
-
-void LoggerManager::init() {
-    // TODO
-}
-
-Logger::ptr LoggerManager::GetLogger(const std::string& name) {
-    std::lock_guard<std::mutex> locker(mtx_);
-
-    auto it = loggers_.find(name);
-    if (it != loggers_.end()) {
-        return it->second;
-    }
-    Logger::ptr new_logger(new Logger(name));
-    loggers_[name] = new_logger;
-    return new_logger;
-}
-
-std::string LoggerManager::ToYamlString() {
-    std::lock_guard<std::mutex> locker(mtx_);
-
-    YAML::Node node;
-    for(auto& i : loggers_) {
-        node.push_back(YAML::Load(i.second->ToYamlString()));
-    }
-    std::stringstream ss;
-    ss << node;
-    return ss.str();
-}
-
-// 从配置文件中加载日志配置
-/**
- * @brief 日志输出器配置结构体定义
- */
-struct LogAppenderDefine {
-    int type = 0;
-    std::string pattern;
-    std::string file;
-
-    bool operator==(LogAppenderDefine& other) const {
-        return type == other.type && pattern == other.pattern && file == other.file;
-    }
-};
-
-/**
- * @brief 日志器配置结构体定义
- */
-struct LogDefine {
-    std::string name;
-    LogLevel::Level level = LogLevel::NOTSET;
-    std::vector<LogAppenderDefine> appenders;
-
-    bool operator==(const LogDefine &oth) const {
-        return name == oth.name && level == oth.level && appenders == appenders;
-    }
-
-    bool operator<(const LogDefine &oth) const {
-        return name < oth.name;
-    }
-
-    bool isValid() const {
-        return !name.empty();
-    }
-};
-
-} // namespace dserver

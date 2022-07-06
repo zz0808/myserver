@@ -1,39 +1,35 @@
 #ifndef THREAD_H_
 #define THREAD_H_
 
-#include "noncopyable.h"
-#include <thread>
-#include <string>
-#include <functional>
-#include <memory>
-#include <pthread.h>
+#include "mutex.h"
+#include "nocopyable.h"
 
-namespace dserver {
+namespace server {
 
-class Thread : public Noncopyable {
+class Thread : public Nocopyable {
 public:
     typedef std::shared_ptr<Thread> ptr;
-    Thread(std::function<void()> cb, const std::string& thread_name = "unknown");
+
+    Thread(std::function<void()> cb, const std::string& name);
     ~Thread();
+    pid_t GetId() const { return id_; }
+    const std::string& getName() const { return name_; }
     void join();
-
-private:
-    static void* Run(void* args);
-
-public:
     static Thread* GetThis();
-    static void SetName(const std::string& name);
     static const std::string& GetName();
-    static pid_t GetThreadId();
+    static void SetName(const std::string& name);
 
 private:
-    // 线程真实id, pthread_self获得的不同进程下线程的id可能是相同的
-    pid_t thread_id_;
-    std::string thread_name_;
-    pthread_t thread_;
+    static void* run(void* args);
+    
+private:
+    pid_t id_ = 0;
+    pthread_t thread_ = 0;
     std::function<void()> cb_;
+    std::string name_;
+    Semaphore sem_;
 };
 
-} // namespace dserver 
+} // namespace server
 
 #endif
