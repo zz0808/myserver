@@ -1,18 +1,32 @@
-#ifndef UTILS_H_
-#define UTILS_H_
+#ifndef __UTILS_H__
+#define __UTILS_H__
 
 #include <sys/types.h>
 #include <stdint.h>
 #include <sys/time.h>
-#include <cxxabi.h> // for abi::__cxa_demangle()
+#include <cxxabi.h> 
 #include <string>
 #include <vector>
 #include <iostream>
+#include <unistd.h>
+#include <string.h>
+#include <time.h>
+#include <dirent.h>
+#include <signal.h> 
+#include <sys/syscall.h>
+#include <sys/stat.h>
+#include <execinfo.h>
+#include <cxxabi.h>  
+#include <algorithm> 
 
 namespace server {
 
-// 获取程序到现在的启动时间(毫秒)
 uint64_t GetElapsedMS();
+pid_t GetThreadId();
+uint64_t GetFiberId();
+std::string GetThreadName();
+std::string GetThreadName();
+void SetThreadName(const std::string &name);
 
 } // namespace server
 

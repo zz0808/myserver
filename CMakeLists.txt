@@ -4,15 +4,11 @@ project(test)
 
 set(CMAKE_CXX_FLAGS "-std=c++17 -ggdb")
 
-# include_directories()
+# include_directories(src)
 
-add_executable(test src/thread.cpp
-                    src/fiber.cpp
-                    src/hook.cpp
-                    src/scheduler.cpp
-                    src/timer.cpp
-                    src/iomanager.cpp
+add_executable(test src/log.cpp
                     src/utils.cpp
-                    test/iomanager_test.cpp)
+                    src/singleton.h
+                    test/test_log.cpp)
 
 target_link_libraries(test pthread)
