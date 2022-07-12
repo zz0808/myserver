@@ -4,7 +4,7 @@ namespace server {
 
 const char* LogLevel::ToString(LogLevel::Level level) {
     switch (level) {
-#define XX(level) case LogLevel::level: return #level;
+#define XX(name) case LogLevel::name: return #name;
     XX(FATAL);
     XX(ALERT);
     XX(CRIT);

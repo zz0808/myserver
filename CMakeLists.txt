@@ -9,6 +9,8 @@ set(CMAKE_CXX_FLAGS "-std=c++17 -ggdb")
 add_executable(test src/log.cpp
                     src/utils.cpp
                     src/singleton.h
-                    test/test_log.cpp)
+                    src/thread.cpp
+                    src/mutex.cpp
+                    test/test_thread.cpp)
 
 target_link_libraries(test pthread)
